@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-jc99&x%dex7ei%7npmf@ffi3q7g$%4l!2x_s9cg*jnp2gy_h3*
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['patoni9a.pythonanywhere.com', '127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['patoni9a.pythonanywhere.com', '127.0.0.1', 'localhost', 'forecasiq-system.onrender.com']
 
 
 # Application definition
