@@ -1,0 +1,130 @@
+{% extends 'prediction/base.html' %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3">
+  <div>
+    <h1>Dashboard</h1>
+    <p>Welcome back — here's your forecasting overview.</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'upload_dataset' %}" class="btn btn-primary">
+      <i class="bi bi-cloud-upload"></i> Upload Data
+    </a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="stat-icon blue"><i class="bi bi-database"></i></div>
+      <div>
+        <div class="stat-label">Datasets</div>
+        <div class="stat-value">{{ total_datasets }}</div>
+        <div class="stat-sub">uploaded files</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="stat-icon green"><i class="bi bi-cpu"></i></div>
+      <div>
+        <div class="stat-label">Forecasts Run</div>
+        <div class="stat-value">{{ total_predictions }}</div>
+        <div class="stat-sub">total predictions</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="stat-icon {% if overall_trend == 'growing' %}green{% elif overall_trend == 'declining' %}red{% else %}amber{% endif %}">
+        <i class="bi bi-graph-up-arrow"></i>
+      </div>
+      <div>
+        <div class="stat-label">Overall Trend</div>
+        <div class="stat-value" style="font-size:18px;text-transform:capitalize">{{ overall_trend|default:"—" }}</div>
+        <div class="stat-sub">based on recent forecasts</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="stat-card">
+      <div class="stat-icon purple"><i class="bi bi-clock-history"></i></div>
+      <div>
+        <div class="stat-label">Last Forecast</div>
+        <div class="stat-value" style="font-size:16px">{% if last_prediction %}{{ last_prediction.created_at|date:"M d" }}{% else %}—{% endif %}</div>
+        <div class="stat-sub">{% if last_prediction %}{{ last_prediction.created_at|date:"Y" }}{% else %}no forecasts yet{% endif %}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if not profile.location %}
+<div style="background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.2); border-radius:var(--radius);padding:20px 24px;margin-bottom:24px; display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+  <div style="display:flex;align-items:center;gap:14px">
+    <div style="width:40px;height:40px;background:rgba(37,99,235,.1);border-radius:10px; display:flex;align-items:center;justify-content:center; color:var(--blue);font-size:20px;flex-shrink:0"><i class="bi bi-shop"></i></div>
+    <div>
+      <div style="font-weight:700;font-size:14px">Set up your Store Profile</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Add your location to unlock weather-powered forecasting and holiday detection.</div>
+    </div>
+  </div>
+  <a href="{% url 'profile' %}" class="btn btn-primary btn-sm"><i class="bi bi-arrow-right"></i> Set Up Now</a>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header">
+        <span class="card-title">Recent Forecasts</span>
+        <a href="{% url 'all_predictions' %}" class="btn btn-secondary btn-sm">View all</a>
+      </div>
+      <div class="card-body p-0">
+        {% if recent_predictions %}
+        <table class="table mb-0">
+          <thead><tr><th>Dataset</th><th>Period</th><th>Trend</th><th>Date</th><th></th></tr></thead>
+          <tbody>
+            {% for p in recent_predictions %}
+            <tr>
+              <td><div style="font-weight:600;font-size:13px">{{ p.dataset.name }}</div></td>
+              <td><span class="badge-pill badge-blue">{{ p.period_label }}</span></td>
+              <td><span class="badge-pill {% if p.trend_direction == 'growing' %}badge-green{% elif p.trend_direction == 'declining' %}badge-red{% else %}badge-amber{% endif %}">{{ p.trend_emoji }} {{ p.trend_direction|capfirst }}</span></td>
+              <td style="color:var(--text-muted);font-size:13px">{{ p.created_at|date:"M d, Y" }}</td>
+              <td><a href="{% url 'results' p.pk %}" class="btn btn-secondary btn-sm btn-icon"><i class="bi bi-arrow-right"></i></a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><i class="bi bi-cpu"></i><h4>No forecasts yet</h4><p>Upload a dataset and run your first prediction.</p><a href="{% url 'upload_dataset' %}" class="btn btn-primary mt-2">Get started</a></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header">
+        <span class="card-title">My Datasets</span>
+        <a href="{% url 'all_datasets' %}" class="btn btn-secondary btn-sm">View all</a>
+      </div>
+      <div class="card-body p-0">
+        {% if datasets %}
+        {% for ds in datasets|slice:":6" %}
+        <a href="{% url 'view_dataset' ds.pk %}" style="display:flex;align-items:center;gap:12px;padding:12px 20px; border-bottom:1px solid var(--border);transition:background .15s; text-decoration:none;color:inherit;" onmouseover="this.style.background='rgba(255,255,255,.025)'" onmouseout="this.style.background=''">
+          <div style="width:36px;height:36px;background:rgba(59,130,246,.1); border-radius:8px;display:flex;align-items:center; justify-content:center;color:var(--blue);font-size:16px;flex-shrink:0"><i class="bi bi-file-earmark-bar-graph"></i></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;white-space:nowrap; overflow:hidden;text-overflow:ellipsis">{{ ds.name }}</div>
+            <div style="font-size:11px;color:var(--text-muted)">{{ ds.row_count|default:0 }} rows · {{ ds.upload_date|date:"M d, Y" }}</div>
+          </div>
+          <span class="badge-pill badge-{% if ds.quality_status == 'excellent' %}green{% elif ds.quality_status == 'good' %}blue{% elif ds.quality_status == 'fair' %}amber{% else %}red{% endif %}" style="font-size:10px">{{ ds.quality_label }}</span>
+        </a>
+        {% endfor %}
+        {% else %}
+        <div class="empty-state"><i class="bi bi-database"></i><h4>No datasets</h4><p>Upload your first sales file to get started.</p><a href="{% url 'upload_dataset' %}" class="btn btn-primary mt-2"><i class="bi bi-cloud-upload"></i> Upload</a></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

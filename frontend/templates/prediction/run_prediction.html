@@ -1,0 +1,123 @@
+{% extends 'prediction/base.html' %}
+{% block title %}Run Forecast — {{ dataset.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">
+    <a href="{% url 'view_dataset' dataset.pk %}">{{ dataset.name }}</a> /
+  </div>
+  <h1>Configure Forecast</h1>
+  <p>Choose how far into the future you want to predict.</p>
+</div>
+
+<div class="row g-4 justify-content-center">
+  <div class="col-lg-7">
+
+    <div class="card mb-4">
+      <div class="card-body">
+        <div style="display:flex;align-items:center;gap:16px">
+          <div style="width:44px;height:44px;background:rgba(59,130,246,.1); border-radius:10px;display:flex;align-items:center; justify-content:center;color:var(--blue);font-size:20px;flex-shrink:0"><i class="bi bi-file-earmark-bar-graph"></i></div>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:15px">{{ dataset.name }}</div>
+            <div style="font-size:12px;color:var(--text-muted)">
+              {{ dataset.row_count }} rows &nbsp;·&nbsp;
+              {{ dataset.upload_date|date:"M d, Y" }} &nbsp;·&nbsp;
+              <span class="badge-pill badge-{% if dataset.quality_status == 'excellent' %}green{% elif dataset.quality_status == 'good' %}blue{% elif dataset.quality_status == 'fair' %}amber{% else %}red{% endif %}" style="font-size:10px">{{ dataset.quality_label }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if dataset.quality_status == 'poor' %}
+    <div class="alert-data-quality mb-4">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <div><strong>Warning:</strong> Only {{ dataset.row_count }} rows detected. Forecasts may be unreliable with fewer than 180 rows.</div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Forecast Settings</span>
+        {% if profile.location %}
+        <span class="badge-pill badge-green"><i class="bi bi-cloud-sun"></i> Weather enabled</span>
+        {% else %}
+        <span class="badge-pill badge-amber"><i class="bi bi-cloud-slash"></i> No location set</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-4">
+            <label class="form-label">Forecast Period Type</label>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+              {% for value, label in period_choices %}
+              <label style="cursor:pointer">
+                <input type="radio" name="period_type" value="{{ value }}" id="pt_{{ value }}" style="display:none" {% if forloop.first %}checked{% endif %}>
+                <div class="period-card" id="card_{{ value }}" style="border:2px solid var(--border);border-radius:var(--radius); padding:16px;text-align:center;transition:all .15s; {% if forloop.first %}border-color:var(--green); background:rgba(5,150,105,.05){% endif %}">
+                  <i class="bi bi-calendar{% if value == 'weeks' %}-week{% elif value == 'months' %}-month{% else %}3{% endif %}" style="font-size:20px;color:var(--green);display:block;margin-bottom:6px"></i>
+                  <div style="font-weight:700;font-size:13px">{{ label }}</div>
+                  <div style="font-size:10px;color:var(--text-muted);margin-top:2px">{% if value == 'weeks' %}up to 52{% elif value == 'months' %}up to 24{% else %}up to 5{% endif %}</div>
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label">Number of Periods</label>
+            <div style="display:flex;align-items:center;gap:12px">
+              <input type="number" name="period_value" id="period_value" class="form-control" value="3" min="1" max="60" style="max-width:160px">
+              <span style="color:var(--text-muted);font-size:13px" id="periodHint">Forecast 3 months into the future</span>
+            </div>
+          </div>
+
+          <div style="padding:14px 16px;background:rgba(124,58,237,.05); border:1px solid rgba(124,58,237,.15); border-radius:var(--radius-sm);margin-bottom:24px">
+            <div style="font-size:12px;font-weight:700;color:var(--purple);margin-bottom:8px"><i class="bi bi-cpu me-1"></i> Hybrid ML Engine — 4 Layers</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              {% for layer in engine_layers %}
+              <div style="font-size:11px;color:var(--text-secondary); display:flex;align-items:center;gap:6px"><i class="bi bi-check-circle-fill" style="color:var(--green);font-size:10px"></i> {{ layer }}</div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-lg" onclick="startLoading(this)">
+              <span class="spinner-border btn-spinner me-2" role="status" aria-hidden="true"></span>
+              <span class="btn-text"><i class="bi bi-cpu"></i> Run Forecast</span>
+            </button>
+            <a href="{% url 'view_dataset' dataset.pk %}" class="btn btn-secondary btn-lg">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const radios  = document.querySelectorAll('input[name="period_type"]');
+  const valInput = document.getElementById('period_value');
+  const hint    = document.getElementById('periodHint');
+
+  radios.forEach(r => {
+    r.addEventListener('change', () => {
+      radios.forEach(x => {
+        const card = document.getElementById('card_' + x.value);
+        card.style.borderColor = ''; card.style.background = '';
+      });
+      const card = document.getElementById('card_' + r.value);
+      card.style.borderColor = 'var(--green)'; card.style.background = 'rgba(5,150,105,.05)';
+      updateHint();
+    });
+  });
+
+  function updateHint() {
+    const ptype = [...radios].find(r => r.checked)?.value || 'months';
+    const pval  = valInput?.value || 3;
+    hint.textContent = `Forecast ${pval} ${ptype} into the future`;
+  }
+  valInput?.addEventListener('input', updateHint);
+</script>
+{% endblock %}

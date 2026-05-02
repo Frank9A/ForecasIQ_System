@@ -1,0 +1,166 @@
+{% extends 'prediction/base.html' %}
+{% block title %}{{ dataset.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3">
+  <div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">
+      <a href="{% url 'all_datasets' %}">Datasets</a> /
+    </div>
+    <h1>{{ dataset.name }}</h1>
+    <p>Uploaded {{ dataset.upload_date|date:"F d, Y \a\t H:i" }}</p>
+  </div>
+  <div class="page-header-actions flex-wrap">
+    <form method="POST" action="{% url 'run_prediction' dataset.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary btn-lg w-100" onclick="startLoading(this)">
+          <span class="spinner-border btn-spinner me-2" role="status" aria-hidden="true"></span>
+          <span class="btn-text"><i class="bi bi-cpu-fill me-2"></i> Generate AI Forecast</span>
+      </button>
+  </form>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon blue"><i class="bi bi-table"></i></div>
+      <div>
+        <div class="stat-label">Rows</div>
+        <div class="stat-value">{{ dataset.row_count|default:"—" }}</div>
+        <div class="stat-sub">total records</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon blue"><i class="bi bi-layout-three-columns"></i></div>
+      <div>
+        <div class="stat-label">Columns</div>
+        <div class="stat-value">{{ dataset.column_count|default:"—" }}</div>
+        <div class="stat-sub">detected fields</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon {% if dataset.quality_status == 'excellent' %}green{% elif dataset.quality_status == 'good' %}blue{% elif dataset.quality_status == 'fair' %}amber{% else %}red{% endif %}">
+        <i class="bi bi-shield-check"></i>
+      </div>
+      <div>
+        <div class="stat-label">Data Quality</div>
+        <div class="stat-value" style="font-size:18px">{{ dataset.quality_label }}</div>
+        <div class="stat-sub">{% if dataset.quality_status == 'excellent' %}365+ rows{% elif dataset.quality_status == 'good' %}180+ rows{% elif dataset.quality_status == 'fair' %}90+ rows{% else %}needs more data{% endif %}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon purple"><i class="bi bi-hdd"></i></div>
+      <div>
+        <div class="stat-label">File Size</div>
+        <div class="stat-value" style="font-size:20px">{{ dataset.formatted_size|default:"—" }}</div>
+        <div class="stat-sub">uploaded file</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if dataset.quality_status == 'poor' %}
+<div class="alert-data-quality mb-4">
+  <i class="bi bi-exclamation-triangle-fill"></i>
+  <div><strong>Insufficient data:</strong> Only {{ dataset.row_count }} rows detected. We recommend at least 180 rows for reliable predictions.</div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card mb-4">
+      <div class="card-header">
+        <span class="card-title">Detected Columns</span>
+        <span class="badge-pill badge-green"><i class="bi bi-magic"></i> Auto</span>
+      </div>
+      <div class="card-body">
+        {% if dataset.mapping %}
+        <div style="display:flex;flex-direction:column;gap:8px">
+          {% for role, actual_col in dataset.mapping.items %}
+          <div style="display:flex;align-items:center;justify-content:space-between; padding:8px 12px;background:var(--bg-base); border-radius:var(--radius-sm);border:1px solid var(--border)">
+            <span style="font-size:11px;font-weight:700;color:var(--text-muted); text-transform:uppercase;letter-spacing:.05em">{{ role }}</span>
+            <span style="font-size:12px;font-weight:600;color:{% if actual_col == 'Not Found' %}var(--red){% else %}var(--green){% endif %}">{{ actual_col }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <p style="font-size:11px;color:var(--text-muted);margin-top:10px">If any mapping looks wrong, rename the column in your file and re-upload.</p>
+        {% else %}
+        <p style="color:var(--text-muted);font-size:13px">No mapping data available.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Forecasts</span>
+        <form method="POST" action="{% url 'run_prediction' dataset.pk %}" style="margin: 0;">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-primary btn-sm" onclick="startLoading(this)">
+            <span class="spinner-border btn-spinner" role="status" aria-hidden="true" style="width:0.8rem;height:0.8rem;border-width:0.1em;margin-right:4px;"></span>
+            <span class="btn-text"><i class="bi bi-cpu"></i> New</span>
+          </button>
+        </form>
+      </div>
+      <div class="card-body p-0">
+        {% if predictions %}
+        <table class="table mb-0">
+          <thead><tr><th>Period</th><th>Trend</th><th>Date</th><th></th></tr></thead>
+          <tbody>
+            {% for p in predictions %}
+            <tr>
+              <td><span class="badge-pill badge-blue">{{ p.period_label }}</span></td>
+              <td><span class="badge-pill {% if p.trend_direction == 'growing' %}badge-green{% elif p.trend_direction == 'declining' %}badge-red{% else %}badge-amber{% endif %}">{{ p.trend_emoji }} {{ p.trend_direction|capfirst }}</span></td>
+              <td style="font-size:12px;color:var(--text-muted)">{{ p.created_at|date:"M d" }}</td>
+              <td><a href="{% url 'results' p.pk %}" class="btn btn-secondary btn-sm btn-icon"><i class="bi bi-arrow-right"></i></a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state" style="padding:30px"><i class="bi bi-cpu" style="font-size:28px"></i><p style="margin-top:8px">No forecasts yet.</p>
+          <form method="POST" action="{% url 'run_prediction' dataset.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary btn-sm mt-2" onclick="startLoading(this)">
+               <span class="spinner-border btn-spinner me-1" role="status" aria-hidden="true" style="width:0.8rem;height:0.8rem;border-width:0.1em"></span>
+               <span class="btn-text">Run First Forecast</span>
+            </button>
+          </form>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Data Preview</span>
+        <span style="font-size:12px;color:var(--text-muted)">First 10 of {{ dataset.row_count }} rows</span>
+      </div>
+      <div class="card-body p-0">
+        {% if dataset.preview_data %}
+        <div class="table-scroll">
+          <table class="table table-sm mb-0">
+            <thead><tr>{% for col in dataset.columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+            <tbody>
+              {% for row in dataset.preview_data %}
+              <tr>{% for value in row %}<td style="white-space:nowrap;font-size:12px">{{ value|default:"—" }}</td>{% endfor %}</tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding:30px"><p>No preview available.</p></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

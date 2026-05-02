@@ -1,0 +1,122 @@
+{% extends 'prediction/base.html' %}
+{% block title %}Upload Dataset{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Upload Dataset</h1>
+  <p>Upload your sales data to begin forecasting. We accept CSV and Excel files.</p>
+</div>
+
+<div class="row g-4 justify-content-center">
+  <div class="col-lg-8">
+    <div class="alert-data-quality mb-4">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <div><strong>For best predictions:</strong> your data should have at least <strong>180 rows (6 months)</strong> of records. More data = more accurate forecasts.</div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header"><span class="card-title">New Dataset</span></div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+          <div class="mb-4">
+            <label class="form-label">Dataset Name</label>
+            <input type="text" name="name" class="form-control" placeholder="e.g. Supermart Q1 2025 Sales">
+          </div>
+          <div class="mb-4">
+            <label class="form-label">Data File</label>
+            <div class="drop-zone" id="dropZone">
+              <input type="file" name="file" id="id_file" accept=".csv,.xlsx,.xls">
+              <div id="fileLabel">
+                <div class="drop-zone-icon"><i class="bi bi-cloud-upload"></i></div>
+                <div class="drop-zone-title">Drag & drop your file here</div>
+                <div class="drop-zone-sub mt-1">or click to browse &nbsp;·&nbsp; CSV, XLSX, XLS &nbsp;·&nbsp; Max 10 MB</div>
+              </div>
+            </div>
+          </div>
+          <div class="mb-4">
+            <label class="form-label">Notes <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+            <textarea name="notes" class="form-control" rows="2" placeholder="Any notes about this dataset…"></textarea>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-lg" onclick="startLoading(this)">
+              <span class="spinner-border btn-spinner me-2" role="status" aria-hidden="true"></span>
+              <span class="btn-text"><i class="bi bi-cloud-upload"></i> Upload & Analyse</span>
+            </button>
+            <a href="{% url 'dashboard' %}" class="btn btn-secondary btn-lg">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title"><i class="bi bi-magic me-2" style="color:var(--green)"></i> Auto-Detection & Expected Format</span><span class="badge-pill badge-green">Smart</span></div>
+      <div class="card-body">
+        <div style="background:rgba(37,99,235,.05);border:1px solid rgba(37,99,235,.15); border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:20px">
+          <div style="font-size:13px;font-weight:700;color:var(--blue);margin-bottom:6px"><i class="bi bi-cpu me-1"></i> How Smart Detection Works</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.7">Our system automatically scans your column names and detects which column is the <strong>date</strong>, which is <strong>sales/revenue</strong>, which is <strong>product</strong>, <strong>category</strong> and <strong>quantity</strong>. Column names can be anything similar — you don't need to rename them.</div>
+        </div>
+        <div class="row g-4">
+          <div class="col-md-5">
+            <div style="font-size:12px;font-weight:700;color:var(--text-muted); text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Accepted Column Names</div>
+            <table class="table table-sm" style="font-size:12px">
+              <thead><tr><th>Role</th><th>Accepted names</th></tr></thead>
+              <tbody>
+                <tr><td><span class="badge-pill badge-red" style="font-size:10px">Required</span> Date</td><td style="color:var(--text-muted)"><code>date, sale_date, order_date, transaction_date</code></td></tr>
+                <tr><td><span class="badge-pill badge-red" style="font-size:10px">Required</span> Sales</td><td style="color:var(--text-muted)"><code>sales, revenue, amount, total, income</code></td></tr>
+                <tr><td><span class="badge-pill badge-amber" style="font-size:10px">Optional</span> Product</td><td style="color:var(--text-muted)"><code>product, item, sku, name</code></td></tr>
+                <tr><td><span class="badge-pill badge-amber" style="font-size:10px">Optional</span> Category</td><td style="color:var(--text-muted)"><code>category, type, department</code></td></tr>
+                <tr><td><span class="badge-pill badge-amber" style="font-size:10px">Optional</span> Quantity</td><td style="color:var(--text-muted)"><code>qty, quantity, units, sold</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="col-md-7">
+            <div style="font-size:12px;font-weight:700;color:var(--text-muted); text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Example CSV Structure</div>
+            <div style="background:var(--bg-base);border:1px solid var(--border); border-radius:var(--radius-sm);overflow:hidden">
+              <div style="display:grid;grid-template-columns:repeat(5,1fr); background:var(--sidebar-bg);padding:8px 12px;gap:8px">
+                {% for col in csv_headers %}
+                <div style="font-size:11px;font-weight:700;color:#10b981; font-family:'Space Mono',monospace">{{ col }}</div>
+                {% endfor %}
+              </div>
+              {% for row in csv_rows %}
+              <div style="display:grid;grid-template-columns:repeat(5,1fr); padding:7px 12px;gap:8px; border-top:1px solid var(--border); background:{% if forloop.counter|divisibleby:2 %}var(--bg-elevated){% else %}var(--bg-surface){% endif %}">
+                {% for cell in row %}<div style="font-size:11px;color:var(--text-secondary); font-family:'Space Mono',monospace; white-space:nowrap;overflow:hidden; text-overflow:ellipsis">{{ cell }}</div>{% endfor %}
+              </div>
+              {% endfor %}
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:8px"><i class="bi bi-info-circle me-1"></i> Currency symbols (₦, $, £), commas in numbers, and blank cells are all handled automatically.</div>
+            <a href="{% url 'download_csv_template' %}" class="btn btn-secondary btn-sm mt-3"><i class="bi bi-download"></i> Download CSV Template</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('id_file');
+  const fileLabel = document.getElementById('fileLabel');
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files[0];
+    if (f) {
+      fileLabel.innerHTML = `
+        <div class="drop-zone-icon"><i class="bi bi-file-earmark-check" style="color:var(--green)"></i></div>
+        <div class="drop-zone-title" style="color:var(--green)">${f.name}</div>
+        <div class="drop-zone-sub">${(f.size/1024).toFixed(1)} KB — click to change</div>`;
+    }
+  });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) {
+      fileInput.files = e.dataTransfer.files;
+      fileInput.dispatchEvent(new Event('change'));
+    }
+  });
+</script>
+{% endblock %}

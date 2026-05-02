@@ -1,0 +1,159 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ForecastIQ — {% if mode == 'login' %}Sign In{% elif mode == 'register' %}Create Account{% else %}Auth{% endif %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --green: #059669; --green-dark: #047857; --green-light: rgba(5,150,105,0.08); --bg: #f0fdf4; --card-bg: #ffffff; --text: #0f172a; --text-muted: #64748b; --border: #e2e8f0; --input-bg: #f8fafc; --error: #dc2626; --radius: 24px; }
+    [data-theme="dark"] { --bg: #0d1117; --card-bg: #161b22; --text: #f1f5f9; --text-muted: #94a3b8; --border: #2d3748; --input-bg: #1c2330; }
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; transition: background .3s; }
+    .auth-card { position: relative; z-index: 1; width: 100%; max-width: 880px; background: var(--card-bg); border-radius: var(--radius); box-shadow: 0 25px 60px rgba(0,0,0,0.12); display: grid; grid-template-columns: 42% 58%; min-height: 540px; overflow: hidden; }
+    .auth-card.register-mode { grid-template-columns: 58% 42%; }
+    .auth-card.register-mode .green-panel { order: 2; border-radius: 80px var(--radius) var(--radius) 80px; }
+    .auth-card.register-mode .form-side { order: 1; }
+    .auth-card:not(.register-mode) .green-panel { border-radius: var(--radius) 80px 80px var(--radius); }
+    .green-panel { background: linear-gradient(145deg, #059669 0%, #047857 60%, #065f46 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 52px 40px; color: #fff; position: relative; overflow: hidden; transition: border-radius .5s ease, order .5s ease; }
+    .panel-logo { width: 64px; height: 64px; background: rgba(255,255,255,0.18); border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 30px; margin-bottom: 28px; position: relative; z-index: 1; backdrop-filter: blur(4px); }
+    .green-panel h2 { font-size: 28px; font-weight: 800; text-align: center; margin-bottom: 14px; line-height: 1.2; position: relative; z-index: 1; }
+    .green-panel p { font-size: 14px; opacity: 0.85; text-align: center; line-height: 1.7; position: relative; z-index: 1; }
+    .form-side { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 44px 52px; }
+    .auth-tabs { display: flex; background: var(--input-bg); border: 1px solid var(--border); border-radius: 12px; padding: 4px; width: 100%; margin-bottom: 28px; }
+    .auth-tab { flex: 1; padding: 10px; border: none; background: transparent; border-radius: 9px; font-size: 13px; font-weight: 600; font-family: inherit; color: var(--text-muted); cursor: pointer; transition: all .2s; }
+    .auth-tab.active { background: var(--green); color: #fff; box-shadow: 0 2px 10px rgba(5,150,105,.35); }
+    .form-panel { width: 100%; display: none; animation: slideUp .3s ease; }
+    .form-panel.active { display: block; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .form-panel .subtitle { font-size: 13px; color: var(--text-muted); text-align: center; margin-bottom: 22px; }
+    .input-group { position: relative; width: 100%; margin-bottom: 14px; }
+    .input-group i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 15px; pointer-events: none; }
+    .input-group input { width: 100%; padding: 12px 14px 12px 42px; background: var(--input-bg); border: 1.5px solid var(--border); border-radius: 10px; font-size: 13px; font-family: inherit; color: var(--text); outline: none; }
+    .input-group input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(5,150,105,.1); }
+    .password-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: 30px; height: 32px; border: none; background: transparent; color: #9ca3af; cursor: pointer; border-radius: 8px; z-index: 2; }
+    .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+    .submit-btn { width: 100%; padding: 13px; background: linear-gradient(135deg, var(--green), var(--green-dark)); color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 6px; }
+    .terms-text { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 14px; }
+    .terms-text a { color: var(--green); text-decoration: none; font-weight: 600; }
+    .msg { width: 100%; border-radius: 8px; padding: 10px 14px; font-size: 12px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .msg.error { background: rgba(220,38,38,.08); border: 1px solid rgba(220,38,38,.25); color: var(--error); }
+    .msg.success { background: rgba(5,150,105,.08); border: 1px solid rgba(5,150,105,.25); color: var(--green); }
+    @media (max-width: 680px) { .auth-card, .auth-card.register-mode { grid-template-columns: 1fr !important; } .green-panel, .auth-card.register-mode .green-panel { order: 1 !important; border-radius: var(--radius) var(--radius) 40px 40px !important; padding: 36px 28px; } .form-side, .auth-card.register-mode .form-side { order: 2 !important; padding: 32px 24px; } .input-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<div class="auth-card {% if mode == 'register' %}register-mode{% endif %}" id="authCard">
+  <div class="green-panel">
+    <div class="panel-logo">
+      <img src="{% static 'prediction/forecastiq-logo.svg' %}" alt="ForecastIQ logo" style="width:100%;height:100%;object-fit:cover;border-radius:18px;">
+    </div>
+    <h2 id="panelTitle">{% if mode == 'register' %}Welcome Back!{% else %}Hello There!{% endif %}</h2>
+    <p id="panelSub">{% if mode == 'register' %}Already have an account? Switch to Sign In.{% else %}New here? Switch to Create Account above.{% endif %}</p>
+  </div>
+
+  <div class="form-side">
+    <div class="auth-tabs">
+      <button class="auth-tab {% if mode == 'login' %}active{% endif %}" id="tabLogin" onclick="switchTab('login')">
+        <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
+      </button>
+      <button class="auth-tab {% if mode == 'register' %}active{% endif %}" id="tabRegister" onclick="switchTab('register')">
+        <i class="bi bi-person-plus me-1"></i> Create Account
+      </button>
+    </div>
+
+    {% for message in messages %}
+      <div class="msg {% if message.tags == 'error' %}error{% else %}success{% endif %}">
+        <i class="bi bi-{% if message.tags == 'error' %}exclamation-circle{% else %}check-circle{% endif %}"></i> {{ message }}
+      </div>
+    {% endfor %}
+
+    <div class="form-panel {% if mode == 'login' %}active{% endif %}" id="panelLogin">
+      <p class="subtitle">Welcome back to ForecastIQ</p>
+      <form method="post" action="{% url 'login' %}">
+        {% csrf_token %}
+        <div class="input-group">
+          <i class="bi bi-person"></i>
+          <input type="text" name="username" placeholder="Username" autocomplete="username" required autofocus>
+        </div>
+        <div class="input-group">
+          <i class="bi bi-lock"></i>
+          <input type="password" name="password" placeholder="Password" autocomplete="current-password" required data-password-field>
+          <button type="button" class="password-toggle" data-password-toggle><i class="bi bi-eye"></i></button>
+        </div>
+        {# <a href="{% url 'password_reset' %}" class="forgot-link">Forgot your password?</a> #}
+        <button type="submit" class="submit-btn"><i class="bi bi-box-arrow-in-right me-1"></i> Sign In</button>
+      </form>
+    </div>
+
+    <div class="form-panel {% if mode == 'register' %}active{% endif %}" id="panelRegister">
+      <p class="subtitle">Start forecasting your sales today</p>
+      <form method="post" action="{% url 'register' %}">
+        {% csrf_token %}
+        <div class="input-row">
+          <div class="input-group" style="margin-bottom:0">
+            <i class="bi bi-at"></i>
+            <input type="text" name="username" placeholder="Username" autocomplete="username" required>
+          </div>
+          <div class="input-group" style="margin-bottom:0">
+            <i class="bi bi-person"></i>
+            <input type="text" name="first_name" placeholder="First Name" autocomplete="given-name" required>
+          </div>
+        </div>
+        <div class="input-group" style="margin-top:14px">
+          <i class="bi bi-envelope"></i>
+          <input type="email" name="email" placeholder="Email Address" autocomplete="email" required>
+        </div>
+        <div class="input-group">
+          <i class="bi bi-lock"></i>
+          <input type="password" name="password1" placeholder="Password (min 8 chars)" autocomplete="new-password" required data-password-field>
+          <button type="button" class="password-toggle" data-password-toggle><i class="bi bi-eye"></i></button>
+        </div>
+        <button type="submit" class="submit-btn"><i class="bi bi-person-check me-1"></i> Create Account</button>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function switchTab(tab) {
+    const card = document.getElementById('authCard');
+    const tLogin = document.getElementById('tabLogin');
+    const tRegister = document.getElementById('tabRegister');
+    const pLogin = document.getElementById('panelLogin');
+    const pRegister = document.getElementById('panelRegister');
+    const title = document.getElementById('panelTitle');
+    const sub = document.getElementById('panelSub');
+
+    if (tab === 'login') {
+      tLogin.classList.add('active'); tRegister.classList.remove('active');
+      pLogin.classList.add('active'); pRegister.classList.remove('active');
+      card.classList.remove('register-mode');
+      if (title) title.textContent = 'Hello There!';
+      if (sub) sub.textContent = 'New here? Switch to Create Account above.';
+    } else {
+      tRegister.classList.add('active'); tLogin.classList.remove('active');
+      pRegister.classList.add('active'); pLogin.classList.remove('active');
+      card.classList.add('register-mode');
+      if (title) title.textContent = 'Welcome Back!';
+      if (sub) sub.textContent = 'Already have an account? Switch to Sign In.';
+    }
+  }
+
+  document.querySelectorAll('[data-password-toggle]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      const input = btn.closest('.input-group').querySelector('input');
+      const icon = btn.querySelector('i');
+      if (input.type === 'password') { input.type = 'text'; icon.className = 'bi bi-eye-slash'; } 
+      else { input.type = 'password'; icon.className = 'bi bi-eye'; }
+    });
+  });
+</script>
+</body>
+</html>

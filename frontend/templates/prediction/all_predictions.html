@@ -1,0 +1,120 @@
+{% extends 'prediction/base.html' %}
+{% block title %}All Forecasts{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-start justify-content-between">
+  <div>
+    <h1>All Forecasts</h1>
+    <p>Every prediction you have run across all datasets.</p>
+  </div>
+</div>
+
+{% if predictions %}
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>Dataset</th><th>Period</th><th>Trend</th>
+          <th>Change</th><th>R² Score</th><th>Status</th><th>Date</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in predictions %}
+        <tr>
+          <td>
+            <a href="{% url 'view_dataset' p.dataset.pk %}"
+               style="font-weight:600;font-size:13px">{{ p.dataset.name }}</a>
+          </td>
+          <td>
+            <span class="badge-pill badge-blue">{{ p.period_label }}</span>
+          </td>
+          <td>
+            <span class="badge-pill
+              {% if p.trend_direction == 'growing' %}badge-green
+              {% elif p.trend_direction == 'declining' %}badge-red
+              {% else %}badge-amber{% endif %}">
+              {{ p.trend_emoji }} {{ p.trend_direction|capfirst }}
+            </span>
+          </td>
+          <td>
+            {% if p.trend_percentage %}
+            <span style="font-family:'Space Mono',monospace;font-size:12px;
+              color:{% if p.trend_direction == 'growing' %}var(--green)
+                    {% elif p.trend_direction == 'declining' %}var(--red)
+                    {% else %}var(--amber){% endif %}">
+              {% if p.trend_percentage > 0 %}+{% endif %}{{ p.trend_percentage|floatformat:1 }}%
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if p.r2 %}
+            <span style="font-family:'Space Mono',monospace;font-size:12px;
+              color:{% if p.r2 >= 0.8 %}var(--green)
+                    {% elif p.r2 >= 0.5 %}var(--amber)
+                    {% else %}var(--red){% endif %}">
+              {{ p.r2|floatformat:3 }}
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            <span class="badge-pill
+              {% if p.status == 'completed' %}badge-green
+              {% elif p.status == 'failed' %}badge-red
+              {% elif p.status == 'running' %}badge-blue
+              {% else %}badge-amber{% endif %}">
+              {{ p.status|capfirst }}
+            </span>
+          </td>
+          <td style="color:var(--text-muted);font-size:13px">
+            {{ p.created_at|date:"M d, Y" }}
+          </td>
+          <td>
+            <div class="d-flex gap-1">
+              {% if p.status == 'completed' %}
+              <a href="{% url 'results' p.pk %}"
+                 class="btn btn-secondary btn-sm btn-icon" title="View results">
+                <i class="bi bi-bar-chart"></i>
+              </a>
+              <a href="{% url 'download_pdf' p.pk %}"
+                 class="btn btn-secondary btn-sm btn-icon" title="PDF">
+                <i class="bi bi-file-pdf"></i>
+              </a>
+              <a href="{% url 'download_excel' p.pk %}"
+                 class="btn btn-secondary btn-sm btn-icon" title="Excel">
+                <i class="bi bi-file-excel"></i>
+              </a>
+              {% endif %}
+              <form method="post" action="{% url 'delete_prediction' p.pk %}"
+                    style="display:inline">
+                {% csrf_token %}
+                <button type="submit"
+                        class="btn btn-secondary btn-sm btn-icon"
+                        data-confirm="Delete this forecast? Cannot be undone.">
+                  <i class="bi bi-trash" style="color:var(--red)"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<div class="card">
+  <div class="card-body">
+    <div class="empty-state">
+      <i class="bi bi-cpu"></i>
+      <h4>No forecasts yet</h4>
+      <p>Upload a dataset and run your first prediction to see results here.</p>
+      <a href="{% url 'upload_dataset' %}" class="btn btn-primary mt-3">
+        <i class="bi bi-cloud-upload"></i> Upload Dataset
+      </a>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,603 @@
+{% extends 'prediction/base.html' %}
+{% block title %}Forecast Results{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3">
+  <div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">
+      <a href="{% url 'all_predictions' %}">Forecasts</a> /
+    </div>
+    <h1>Forecast Results</h1>
+    <p>{{ dataset.name }} &nbsp;·&nbsp; {{ prediction.period_label }}
+       &nbsp;·&nbsp; {{ prediction.created_at|date:"F d, Y" }}</p>
+  </div>
+  <div class="page-header-actions flex-wrap">
+    <a href="{% url 'download_pdf' prediction.pk %}" class="btn btn-secondary">
+      <i class="bi bi-file-pdf"></i> PDF
+    </a>
+    <a href="{% url 'download_excel' prediction.pk %}" class="btn btn-secondary">
+      <i class="bi bi-file-excel"></i> Excel
+    </a>
+    <a href="{% url 'run_prediction' dataset.pk %}" class="btn btn-primary">
+      <i class="bi bi-cpu"></i> New Forecast
+    </a>
+  </div>
+</div>
+
+<!-- ═══ SECTION 1 — SUMMARY ═══ -->
+<div class="section-divider">
+  <div class="section-divider-line"></div>
+  <div class="section-divider-label"><i class="bi bi-emoji-smile me-1"></i> Section 1 — Summary</div>
+  <div class="section-divider-line"></div>
+</div>
+
+<div class="verdict-card {{ prediction.trend_direction }} mb-4">
+  <div class="verdict-icon">
+    {% if prediction.trend_direction == 'growing' %}📈
+    {% elif prediction.trend_direction == 'declining' %}📉
+    {% else %}➡️{% endif %}
+  </div>
+  <div>
+    <div class="verdict-label">Sales Forecast Verdict</div>
+    <div class="verdict-headline">
+      {% if prediction.trend_direction == 'growing' %}
+        Your sales are predicted to GROW by {{ prediction.trend_percentage|floatformat:1 }}%
+      {% elif prediction.trend_direction == 'declining' %}
+        Your sales are predicted to DECLINE by
+        {% if prediction.trend_percentage < 0 %}{{ prediction.trend_percentage|floatformat:1|slice:"1:" }}{% else %}{{ prediction.trend_percentage|floatformat:1 }}{% endif %}%
+      {% else %}
+        Your sales are predicted to remain STABLE
+      {% endif %}
+      over the next {{ prediction.period_label }}
+    </div>
+    <div class="verdict-sub">{{ prediction.plain_summary }}</div>
+  </div>
+</div>
+
+<!-- KPI cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon {% if prediction.trend_direction == 'growing' %}green{% elif prediction.trend_direction == 'declining' %}red{% else %}amber{% endif %}">
+        <i class="bi bi-arrow-{% if prediction.trend_direction == 'growing' %}up{% elif prediction.trend_direction == 'declining' %}down{% else %}right{% endif %}-circle"></i>
+      </div>
+      <div>
+        <div class="stat-label">Trend</div>
+        <div class="stat-value" style="font-size:16px;text-transform:capitalize">{{ prediction.trend_direction }}</div>
+        <div class="stat-sub">overall direction</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon blue"><i class="bi bi-calendar-range"></i></div>
+      <div>
+        <div class="stat-label">Period</div>
+        <div class="stat-value" style="font-size:16px">{{ prediction.period_label }}</div>
+        <div class="stat-sub">forecast horizon</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon purple"><i class="bi bi-box-seam"></i></div>
+      <div>
+        <div class="stat-label">Top Product</div>
+        <div class="stat-value" style="font-size:14px;line-height:1.3">{{ prediction.best_product|default:"N/A"|truncatechars:16 }}</div>
+        <div class="stat-sub">highest revenue</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card">
+      <div class="stat-icon amber"><i class="bi bi-tag"></i></div>
+      <div>
+        <div class="stat-label">Top Category</div>
+        <div class="stat-value" style="font-size:14px;line-height:1.3">{{ prediction.best_category|default:"N/A"|truncatechars:16 }}</div>
+        <div class="stat-sub">highest revenue</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SECTION 2 — CHARTS ═══ -->
+<div class="section-divider">
+  <div class="section-divider-line"></div>
+  <div class="section-divider-label"><i class="bi bi-bar-chart me-1"></i> Section 2 — Charts & Trends</div>
+  <div class="section-divider-line"></div>
+</div>
+
+<!-- Main chart -->
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title">Sales Flow — Past into Future</span>
+    <span class="badge-pill badge-purple"><i class="bi bi-cpu"></i> Hybrid ML</span>
+  </div>
+  <div class="card-body">
+    <div id="mainChart" style="height:360px"></div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:8px;text-align:center">
+      Blue = actual past sales &nbsp;·&nbsp;
+      Amber dashed = model accuracy check &nbsp;·&nbsp;
+      Green dashed = predicted future &nbsp;·&nbsp;
+      Shaded = confidence band
+    </div>
+  </div>
+</div>
+
+<!-- Bar + Donut -->
+<div class="row g-4 mb-4">
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header">
+        <span class="card-title">Predicted Sales Breakdown</span>
+        <span class="badge-pill badge-green">Forecast</span>
+      </div>
+      <div class="card-body">
+        <div id="barChart" style="height:260px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <span class="card-title">{% if prediction.category_breakdown %}By Category{% else %}By Product{% endif %}</span>
+      </div>
+      <div class="card-body">
+        <div id="donutChart" style="height:260px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Model scores -->
+{% if prediction.model_scores %}
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title"><i class="bi bi-cpu me-1" style="color:var(--purple)"></i> Hybrid Model Breakdown</span>
+    <span class="badge-pill badge-purple">Prophet 70% + Holt-Winters 30%</span>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-6 col-md-3">
+        <div class="metric-card">
+          <div class="metric-label">Prophet Weight</div>
+          <div class="metric-value" style="font-size:22px">70%</div>
+          <div class="metric-desc">Primary model — trend, seasonality, holidays</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="metric-card">
+          <div class="metric-label">Holt-Winters Weight</div>
+          <div class="metric-value" style="font-size:22px">30%</div>
+          <div class="metric-desc">Sanity check — smoothing model</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="metric-card">
+          <div class="metric-label">R² Accuracy</div>
+          <div class="metric-value" style="font-size:22px;color:{% if prediction.r2 >= 0.8 %}var(--green){% elif prediction.r2 >= 0.5 %}var(--amber){% else %}var(--red){% endif %}">
+            {{ prediction.r2|floatformat:3 }}
+          </div>
+          <div class="metric-desc">How well model fits history. 1.0 = perfect</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="metric-card">
+          <div class="metric-label">Confidence Band</div>
+          <div class="metric-value" style="font-size:22px">±{{ prediction.model_scores.conformal_q90|floatformat:0 }}</div>
+          <div class="metric-desc">90% prediction interval width</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ ANOMALY ALERTS ═══ -->
+{% if prediction.anomalies %}
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title"><i class="bi bi-exclamation-triangle-fill text-warning me-1"></i> Anomaly Alerts</span>
+    <span class="badge-pill badge-amber">{{ prediction.anomalies|length }} detected</span>
+  </div>
+  <div class="card-body p-0">
+    <table class="table mb-0">
+      <thead>
+        <tr><th>Date</th><th>Type</th><th>Actual</th><th>Expected</th><th>Deviation</th><th>Severity</th></tr>
+      </thead>
+      <tbody>
+        {% for a in prediction.anomalies %}
+        <tr>
+          <td style="font-weight:600;font-size:13px">{{ a.date }}</td>
+          <td>
+            {% if a.type == 'spike' %}
+              <span class="badge-pill badge-green"><i class="bi bi-arrow-up"></i> Spike</span>
+            {% else %}
+              <span class="badge-pill badge-red"><i class="bi bi-arrow-down"></i> Drop</span>
+            {% endif %}
+          </td>
+          <td style="font-size:13px">{{ a.value|floatformat:2 }}</td>
+          <td style="font-size:13px;color:var(--text-muted)">{{ a.mean|floatformat:2 }}</td>
+          <td>
+            <span style="font-weight:700;font-size:13px;color:{% if a.type == 'spike' %}var(--green){% else %}var(--red){% endif %}">
+              {% if a.pct > 0 %}+{% endif %}{{ a.pct|floatformat:1 }}%
+            </span>
+          </td>
+          <td>
+            <span class="badge-pill {% if a.severity == 'high' %}badge-red{% elif a.severity == 'medium' %}badge-amber{% else %}badge-blue{% endif %}">
+              {{ a.severity|capfirst }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ RESTOCK ALERTS ═══ -->
+{% if prediction.restock_alerts %}
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title"><i class="bi bi-box-seam-fill text-info me-1"></i> Restocking Alerts</span>
+    <span class="badge-pill badge-blue">{{ prediction.restock_alerts|length }} products</span>
+  </div>
+  <div class="card-body p-0">
+    <table class="table mb-0">
+      <thead>
+        <tr><th>Product</th><th>Daily Avg</th><th>Projected 30 Days</th><th>Trend</th><th>Urgency</th><th>Recommendation</th></tr>
+      </thead>
+      <tbody>
+        {% for a in prediction.restock_alerts %}
+        <tr>
+          <td style="font-weight:600;font-size:13px">{{ a.product }}</td>
+          <td style="font-size:13px">{{ a.daily_avg|floatformat:2 }}</td>
+          <td style="font-size:13px;font-weight:700">{{ a.projected_30|floatformat:2 }}</td>
+          <td>
+            <span style="font-weight:700;font-size:13px;color:{% if a.trend_pct >= 0 %}var(--green){% else %}var(--red){% endif %}">
+              {% if a.trend_pct > 0 %}+{% endif %}{{ a.trend_pct|floatformat:1 }}%
+            </span>
+          </td>
+          <td>
+            <span class="badge-pill {% if a.urgency == 'high' %}badge-red{% elif a.urgency == 'medium' %}badge-amber{% elif a.urgency == 'low' %}badge-purple{% else %}badge-green{% endif %}">
+              {{ a.urgency|capfirst }}
+            </span>
+          </td>
+          <td style="font-size:12px;color:var(--text-secondary)">{{ a.reason }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ AI ADVISOR ═══ -->
+{% if prediction.ai_advice %}
+<div class="card mb-4" style="border-color:rgba(124,58,237,.3)">
+  <div class="card-header" style="background:rgba(124,58,237,.05)">
+    <span class="card-title"><i class="bi bi-robot me-1" style="color:var(--purple)"></i> AI Sales Advisor</span>
+    <span class="badge-pill badge-purple"><i class="bi bi-stars"></i> Claude AI</span>
+  </div>
+  <div class="card-body">
+    <div style="font-size:14px;color:var(--text-secondary);line-height:1.8;white-space:pre-wrap">{{ prediction.ai_advice }}</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══ SECTION 3 — TECHNICAL ═══ -->
+<div class="section-divider">
+  <div class="section-divider-line"></div>
+  <div class="section-divider-label"><i class="bi bi-code-square me-1"></i> Section 3 — Technical Detail</div>
+  <div class="section-divider-line"></div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="metric-card">
+      <div class="metric-label">MAE</div>
+      <div class="metric-value">{{ prediction.mae|floatformat:2 }}</div>
+      <div class="metric-desc">Mean Absolute Error — average prediction error. Lower is better.</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="metric-card">
+      <div class="metric-label">MSE</div>
+      <div class="metric-value">{{ prediction.mse|floatformat:2 }}</div>
+      <div class="metric-desc">Mean Squared Error — penalises large errors more heavily.</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="metric-card">
+      <div class="metric-label">R² Score</div>
+      <div class="metric-value" style="color:{% if prediction.r2 >= 0.8 %}var(--green){% elif prediction.r2 >= 0.5 %}var(--amber){% else %}var(--red){% endif %}">
+        {{ prediction.r2|floatformat:4 }}
+      </div>
+      <div class="metric-desc">How well the model fits. 1.0 = perfect. Above 0.8 = excellent.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Forecast table -->
+<div class="card mb-4">
+  <div class="card-header">
+    <span class="card-title">Full Forecast Table</span>
+    <span style="font-size:12px;color:var(--text-muted)">{{ prediction.forecast_data|length }} total rows</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-scroll" style="max-height:320px;overflow-y:auto">
+      <table class="table mb-0" style="font-family:'Space Mono',monospace">
+        <thead>
+          <tr><th>#</th><th>Date</th><th>Predicted Sales</th><th>Lower Bound</th><th>Upper Bound</th></tr>
+        </thead>
+        <tbody>
+          {% for row in prediction.forecast_data %}
+          <tr>
+            <td style="color:var(--text-muted)">{{ forloop.counter }}</td>
+            <td>{{ row.ds }}</td>
+            <td style="color:var(--green);font-weight:600">{{ row.yhat|floatformat:2 }}</td>
+            <td style="color:var(--text-muted)">{{ row.yhat_lower|floatformat:2 }}</td>
+            <td style="color:var(--text-muted)">{{ row.yhat_upper|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Product & Category tables -->
+<div class="row g-4 mb-4">
+  {% if prediction.product_breakdown %}
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><span class="card-title">By Product</span></div>
+      <div class="card-body p-0">
+        <div class="table-scroll">
+          <table class="table mb-0">
+            <thead><tr><th>Product</th><th>Total Sales</th></tr></thead>
+            <tbody>
+              {% for product, sales in prediction.product_breakdown.items %}
+              <tr>
+                <td style="font-weight:600;font-size:13px">{{ product }}</td>
+                <td style="color:var(--green);font-family:'Space Mono',monospace">{{ sales|floatformat:2 }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% if prediction.category_breakdown %}
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><span class="card-title">By Category</span></div>
+      <div class="card-body p-0">
+        <div class="table-scroll">
+          <table class="table mb-0">
+            <thead><tr><th>Category</th><th>Total Sales</th></tr></thead>
+            <tbody>
+              {% for category, sales in prediction.category_breakdown.items %}
+              <tr>
+                <td style="font-weight:600;font-size:13px">{{ category }}</td>
+                <td style="color:var(--green);font-family:'Space Mono',monospace">{{ sales|floatformat:2 }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Export -->
+<div class="card mt-2">
+  <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+    <div style="flex:1">
+      <div style="font-weight:700;font-size:15px">Download Full Report</div>
+      <div style="font-size:13px;color:var(--text-muted)">PDF includes all charts and tables. Excel has 5 sheets.</div>
+    </div>
+    <a href="{% url 'download_pdf' prediction.pk %}" class="btn btn-secondary btn-lg">
+      <i class="bi bi-file-pdf"></i> Download PDF
+    </a>
+    <a href="{% url 'download_excel' prediction.pk %}" class="btn btn-primary btn-lg">
+      <i class="bi bi-file-excel"></i> Download Excel
+    </a>
+  </div>
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+const forecastData   = {{ forecast_json|safe }};
+const historicalData = {{ historical_json|safe }};
+const productData    = {{ product_json|safe }};
+const categoryData   = {{ category_json|safe }};
+
+const isDark = () => document.documentElement.getAttribute('data-theme') === 'dark';
+
+// ── Smart grouping (Weekly vs Monthly) ─────────────────────────────
+const useWeekly = forecastData.length <= 120;
+
+function groupData(data, isHist) {
+  const map = {};
+  data.forEach(row => {
+    let key;
+    if (useWeekly) {
+      const d = new Date(row.ds);
+      d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      key = d.toISOString().slice(0, 10);
+    } else {
+      const d = new Date(row.ds);
+      key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    }
+    if (!map[key]) map[key] = { y:0, yhat:0, lower:0, upper:0, n:0 };
+    if (isHist) map[key].y += (row.y  || 0);
+    map[key].yhat  += (row.yhat       || 0);
+    map[key].lower += (row.yhat_lower || 0);
+    map[key].upper += (row.yhat_upper || 0);
+    map[key].n++;
+  });
+  return Object.entries(map)
+    .sort((a,b) => a[0].localeCompare(b[0]))
+    .map(([key, v]) => ({
+      key,
+      label: useWeekly
+        ? new Date(key).toLocaleDateString('en-GB', {day:'numeric', month:'short'})
+        : new Date(key+'-01').toLocaleDateString('en-GB', {month:'short', year:'numeric'}),
+      y    : Math.round(v.y     / v.n),
+      yhat : Math.round(v.yhat  / v.n),
+      lower: Math.round(v.lower / v.n),
+      upper: Math.round(v.upper / v.n),
+      n    : v.n,
+    }));
+}
+
+// ── CHART 1 — The Clean Flow Chart ─────────────────────────────────
+(function() {
+  const dark    = isDark();
+  const histM   = groupData(historicalData, true);
+  const fcM     = groupData(forecastData,   false);
+
+  // Drop last period if incomplete
+  const cleanHist = histM.filter((m,i) => !(i === histM.length - 1 && m.n < (useWeekly ? 5 : 20)));
+
+  const histLen = cleanHist.length;
+  const totalLen = histLen + fcM.length;
+
+  const overlapCount = Math.min(6, cleanHist.length);
+
+  const seriesActual    = Array(totalLen).fill(null);
+  const seriesOverlap   = Array(totalLen).fill(null);
+  const seriesPredicted = Array(totalLen).fill(null);
+  const seriesUpper     = Array(totalLen).fill(null);
+  const seriesLower     = Array(totalLen).fill(null);
+
+  // 1. Plot the actual blue line
+  cleanHist.forEach((d, i) => { seriesActual[i] = d.y; });
+
+  // 2. Plot the amber overlap line
+  for (let i = histLen - overlapCount; i < histLen; i++) {
+    seriesOverlap[i] = cleanHist[i].yhat; 
+  }
+
+  // 3. Plot the green future line and bounds
+  fcM.forEach((d, i) => {
+    seriesPredicted[histLen + i] = d.yhat;
+    seriesUpper[histLen + i]     = d.upper;
+    seriesLower[histLen + i]     = d.lower;
+  });
+
+  // 4. THE CONNECTION FIX: Tie them all to the exact same pixel!
+  const joinIdx = histLen - 1;
+  if (cleanHist[joinIdx] && fcM[0]) {
+      const anchorPoint = cleanHist[joinIdx].y; // Lock it to the actual historical end
+      seriesPredicted[joinIdx] = anchorPoint;
+      seriesUpper[joinIdx]     = anchorPoint;
+      seriesLower[joinIdx]     = anchorPoint;
+      seriesOverlap[joinIdx]   = anchorPoint;
+  }
+
+  const allLabels = [ ...cleanHist.map(d => d.label), ...fcM.map(d => d.label) ];
+
+  new ApexCharts(document.getElementById('mainChart'), {
+    chart: { type: 'line', height: 360, background: 'transparent', toolbar: { show: true } },
+    theme: { mode: dark ? 'dark' : 'light' },
+    series: [
+      { name:'Actual Sales',          type:'line', data: seriesActual    },
+      { name:'Model Fit (accuracy)',  type:'line', data: seriesOverlap   },
+      { name:'Predicted Sales',       type:'line', data: seriesPredicted },
+      { name:'Upper Bound',           type:'area', data: seriesUpper     },
+      { name:'Lower Bound',           type:'line', data: seriesLower     },
+    ],
+    colors: [
+      dark ? '#60a5fa' : '#2563eb', // Clean Blue
+      dark ? '#f59e0b' : '#d97706', // Amber
+      dark ? '#34d399' : '#059669', // Green
+      dark ? 'rgba(52,211,153,0.15)' : 'rgba(5,150,105,0.12)', // Subtle band color
+      'transparent' // Hide the bottom line of the band
+    ],
+    stroke: { 
+        curve: 'smooth', 
+        width: [2.5, 2.5, 2.5, 0, 0], // Thin, crisp lines
+        dashArray: [0, 4, 4, 0, 0]    // Solid, Dashed, Dashed
+    },
+    fill: { 
+        type: ['solid','solid','solid','solid','solid'], 
+        opacity: [1, 1, 1, 0.4, 0] // Only the upper bound has opacity to create the "band" effect
+    },
+    xaxis: { 
+        categories: allLabels, 
+        labels: { style: { colors: dark ? '#94a3b8' : '#6b7280' } } 
+    },
+    yaxis: { 
+        labels: { formatter: v => v >= 1000 ? (v/1000).toFixed(1)+'k' : v, style: { colors: dark ? '#94a3b8' : '#6b7280'} } 
+    },
+    grid: { borderColor: dark ? '#2d3748' : '#e2e8f0', strokeDashArray: 4 },
+    annotations: {
+      xaxis: [
+        {
+          x: cleanHist[histLen - overlapCount]?.label,
+          borderColor: dark ? '#f59e0b' : '#d97706',
+          strokeDashArray: 4,
+          label: {
+            text: 'Accuracy Check',
+            orientation: 'vertical',
+            style: { color: dark ? '#f59e0b' : '#d97706', background: 'transparent', fontWeight: 600 }
+          }
+        },
+        {
+          x: cleanHist[joinIdx]?.label,
+          borderColor: dark ? '#94a3b8' : '#6b7280',
+          strokeDashArray: 4,
+          label: {
+            text: 'Forecast Start',
+            orientation: 'vertical',
+            style: { color: dark ? '#94a3b8' : '#6b7280', background: 'transparent', fontWeight: 600 }
+          }
+        }
+      ]
+    }
+  }).render();
+})();
+
+// ── CHART 2 — Bar chart ────────────────────────────────────────────
+(function() {
+  const dark = isDark();
+  const fcM = groupData(forecastData, false);
+  new ApexCharts(document.getElementById('barChart'), {
+    chart: { type:'bar', height:260, background:'transparent', toolbar:{ show:false } },
+    theme: { mode: dark ? 'dark' : 'light' },
+    plotOptions: { bar:{ borderRadius:4, columnWidth:'50%' } },
+    series: [{ name:'Predicted Sales', data: fcM.map(d => d.yhat) }],
+    colors: [dark ? '#60a5fa' : '#2563eb'],
+    xaxis: { categories: fcM.map(d => d.label), labels: { style: { colors: dark ? '#94a3b8' : '#6b7280' } } },
+    yaxis: { labels: { formatter: v => v >= 1000 ? (v/1000).toFixed(1)+'k' : v, style: { colors: dark ? '#94a3b8' : '#6b7280' } } },
+    grid: { borderColor: dark ? '#2d3748' : '#e2e8f0', strokeDashArray:4 },
+  }).render();
+})();
+
+// ── CHART 3 — Donut ────────────────────────────────────────────────
+(function() {
+  const dark = isDark();
+  const src = Object.keys(categoryData).length > 0 ? categoryData : productData;
+  const labels = Object.keys(src).slice(0, 5);
+  const values = Object.values(src).slice(0, 5).map(v => Math.round(v));
+  if (values.length === 0) return;
+
+  new ApexCharts(document.getElementById('donutChart'), {
+    chart: { type:'donut', height:260, background:'transparent' },
+    theme: { mode: dark ? 'dark' : 'light' },
+    series: values, labels: labels,
+    colors: ['#059669','#2563eb','#d97706','#7c3aed','#dc2626'],
+    dataLabels: { enabled:false },
+    legend: { position: 'bottom', labels: { colors: dark ? '#94a3b8' : '#6b7280' } }
+  }).render();
+})();
+</script>
+{% endblock %}

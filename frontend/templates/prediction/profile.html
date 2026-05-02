@@ -1,0 +1,304 @@
+{% extends 'prediction/base.html' %}
+{% block title %}Profile Settings{% endblock %}
+
+{% block extra_css %}
+<style>
+  .profile-identity {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px;
+    border-radius: var(--radius);
+    background: rgba(5,150,105,.05);
+    border: 1px solid rgba(5,150,105,.12);
+    margin-bottom: 22px;
+  }
+
+  .profile-avatar {
+    width: 84px;
+    height: 84px;
+    border-radius: 24px;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--green), #0b7f62);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 800;
+    flex-shrink: 0;
+    box-shadow: 0 16px 30px rgba(5,150,105,.16);
+  }
+
+  .profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .profile-help {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.7;
+    margin-top: 8px;
+  }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .feature-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-soft);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  @media (max-width: 575px) {
+    .profile-identity {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .feature-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Profile Settings</h1>
+  <p>Manage your account details, password, profile picture, and store settings from one place.</p>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card mb-4">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-person-circle me-2"></i>Account Details</span>
+        <span class="badge-pill badge-green"><i class="bi bi-pencil-square"></i> Editable</span>
+      </div>
+      <div class="card-body">
+        <div class="profile-identity">
+          <div class="profile-avatar">
+            {% if profile_picture_url %}
+            <img src="{{ profile_picture_url }}" alt="Profile picture">
+            {% else %}
+            {{ request.user.first_name|first|upper|default:request.user.username|first|upper }}
+            {% endif %}
+          </div>
+          <div>
+            <div style="font-size:18px;font-weight:800;color:var(--text-primary)">
+              {{ request.user.get_full_name|default:request.user.username }}
+            </div>
+            <div style="font-size:13px;color:var(--text-secondary);margin-top:4px">
+              Username: <strong>{{ request.user.username }}</strong>
+            </div>
+            <div class="profile-help">
+              Update your name, email address, and profile picture here.
+            </div>
+          </div>
+        </div>
+
+        <form method="POST" action="{% url 'profile' %}" enctype="multipart/form-data">
+          <input type="hidden" name="form_name" value="account">
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label">First Name</label>
+              <input type="text" name="first_name" class="form-control"
+                     value="{{ request.user.first_name }}" placeholder="e.g. Ada">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Last Name</label>
+              <input type="text" name="last_name" class="form-control"
+                     value="{{ request.user.last_name }}" placeholder="e.g. Lovelace">
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label">Email Address</label>
+            <input type="email" name="email" class="form-control"
+                   value="{{ request.user.email }}" placeholder="e.g. ada@example.com">
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label">Profile Picture</label>
+            <input type="file" name="profile_picture" class="form-control"
+                   accept="image/png,image/jpeg,image/webp,image/gif">
+            <div class="profile-help">
+              Supported image formats only. Keep uploads under 5 MB.
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-save"></i> Save Account
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-shield-lock me-2"></i>Password</span>
+        <span class="badge-pill badge-blue"><i class="bi bi-lock"></i> Secure</span>
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="form_name" value="password">
+
+          <div class="mb-4">
+            <label class="form-label">Current Password</label>
+            <input type="password" name="current_password" class="form-control" placeholder="Enter current password">
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label">New Password</label>
+            <input type="password" name="new_password1" class="form-control" placeholder="At least 8 characters">
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label">Confirm New Password</label>
+            <input type="password" name="new_password2" class="form-control" placeholder="Re-enter the new password">
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-key"></i> Update Password
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><i class="bi bi-shop me-2"></i>Store Settings</span>
+        {% if profile.location %}
+        <span class="badge-pill badge-green"><i class="bi bi-check-circle"></i> Configured</span>
+        {% else %}
+        <span class="badge-pill badge-amber"><i class="bi bi-exclamation-circle"></i> Not set</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="form_name" value="store">
+
+          <div class="mb-4">
+            <label class="form-label">Store Name</label>
+            <input type="text" name="store_name" class="form-control"
+                   value="{{ profile.store_name }}" placeholder="e.g. Frankline Supermart">
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label">Location <span style="color:var(--green)">Powers weather and holidays</span></label>
+            <input type="text" name="location" class="form-control"
+                   value="{{ profile.location }}" placeholder="e.g. Lagos, Nigeria">
+            <div class="profile-help">
+              <i class="bi bi-info-circle me-1"></i>
+              Enter your city and country. This is used to automatically fetch weather data
+              and public holidays so you never need to enter them manually.
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label">Country Code</label>
+              <input type="text" name="country_code" class="form-control"
+                     value="{{ profile.country_code }}" placeholder="e.g. NG"
+                     maxlength="5" style="text-transform:uppercase">
+              <div class="profile-help" style="margin-top:4px">
+                2-letter code: NG, US, GB, KE, GH etc.
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Climate Region</label>
+              <select name="region" class="form-control">
+                <option value="tropical" {% if profile.region == 'tropical' %}selected{% endif %}>
+                  Tropical (Dry / Rainy seasons)
+                </option>
+                <option value="temperate" {% if profile.region == 'temperate' %}selected{% endif %}>
+                  Temperate (4 seasons)
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label">Currency</label>
+              <input type="text" name="currency" class="form-control"
+                     value="{{ profile.currency }}" placeholder="e.g. NGN, USD, GBP">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Industry</label>
+              <input type="text" name="industry" class="form-control"
+                     value="{{ profile.industry }}" placeholder="e.g. Retail, FMCG">
+            </div>
+          </div>
+
+          <!-- What this powers -->
+          <div style="background:rgba(5,150,105,.05);border:1px solid rgba(5,150,105,.15);
+                      border-radius:var(--radius-sm);padding:16px;margin-bottom:24px">
+            <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:10px">
+              <i class="bi bi-lightning-charge-fill me-1"></i> What your location powers:
+            </div>
+            <div class="feature-grid">
+              {% for item in features %}
+              <div class="feature-item">
+                <i class="bi bi-check-circle-fill" style="color:var(--green);font-size:11px"></i>
+                {{ item }}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-save"></i> Save Store Settings
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+    <div class="card mt-4">
+      <div class="card-header">
+        <span class="card-title">How it works</span>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          {% for step in steps %}
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="width:28px;height:28px;background:rgba(5,150,105,.1);
+                        border-radius:50%;display:flex;align-items:center;
+                        justify-content:center;color:var(--green);
+                        font-size:12px;font-weight:800;flex-shrink:0">
+              {{ forloop.counter }}
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--text-primary)">
+                {{ step.title }}
+              </div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">
+                {{ step.desc }}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

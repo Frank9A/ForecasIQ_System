@@ -1,0 +1,65 @@
+{% extends 'prediction/base.html' %}
+{% block title %}My Datasets{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-start justify-content-between">
+  <div>
+    <h1>My Datasets</h1>
+    <p>All your uploaded sales data files.</p>
+  </div>
+  <div class="page-header-actions">
+    <a href="{% url 'upload_dataset' %}" class="btn btn-primary">
+      <i class="bi bi-cloud-upload"></i> Upload New
+    </a>
+  </div>
+</div>
+
+{% if datasets %}
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table mb-0">
+      <thead>
+        <tr><th>Name</th><th>Rows</th><th>Quality</th><th>Size</th><th>Uploaded</th><th>Forecasts</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for ds in datasets %}
+        <tr>
+          <td>
+            <div style="font-weight:600;font-size:14px">{{ ds.name }}</div>
+            {% if ds.notes %}<div style="font-size:12px;color:var(--text-muted)">{{ ds.notes|truncatechars:50 }}</div>{% endif %}
+          </td>
+          <td><span style="font-family:'Space Mono',monospace;font-size:13px">{{ ds.row_count|default:"—" }}</span></td>
+          <td><span class="badge-pill badge-{% if ds.quality_status == 'excellent' %}green{% elif ds.quality_status == 'good' %}blue{% elif ds.quality_status == 'fair' %}amber{% else %}red{% endif %}">{{ ds.quality_label }}</span></td>
+          <td style="color:var(--text-muted);font-size:13px">{{ ds.file_size_display }}</td>
+          <td style="color:var(--text-muted);font-size:13px">{{ ds.upload_date|date:"M d, Y" }}</td>
+          <td><span class="badge-pill badge-blue">{{ ds.predictions.count }} run{{ ds.predictions.count|pluralize }}</span></td>
+          <td>
+            <div class="d-flex gap-1">
+              <a href="{% url 'view_dataset' ds.pk %}" class="btn btn-secondary btn-sm btn-icon" title="View"><i class="bi bi-eye"></i></a>
+              <form method="POST" action="{% url 'run_prediction' ds.pk %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary btn-sm btn-icon" title="Run forecast" onclick="startLoading(this)">
+                    <span class="spinner-border btn-spinner" role="status" aria-hidden="true" style="width:0.8rem;height:0.8rem;border-width:0.1em;margin: 0;"></span>
+                    <span class="btn-text"><i class="bi bi-cpu"></i></span>
+                </button>
+              </form>
+              <form method="post" action="{% url 'delete_dataset' ds.pk %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary btn-sm btn-icon" data-confirm="Delete '{{ ds.name }}'? This cannot be undone."><i class="bi bi-trash" style="color:var(--red)"></i></button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <div class="card-body">
+    <div class="empty-state"><i class="bi bi-database"></i><h4>No datasets yet</h4><p>Upload your first sales data file to get started.</p><a href="{% url 'upload_dataset' %}" class="btn btn-primary mt-3"><i class="bi bi-cloud-upload"></i> Upload Dataset</a></div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
